@@ -1,0 +1,53 @@
+# docker-compose.yml
+# Phase 2: Mosquitto MQTT broker for the hybrid fleet.
+# Run with: docker-compose up -d mosquitto
+# (or `docker compose` on systems with the plugin)
+version: "3.8"
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: fleet-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001" # WebSocket (optional for future tools)
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    command: mosquitto -c /mosquitto/config/mosquitto.conf
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "ping", "-C", "1", "-W", "5", "--quiet", "--host", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Phase 2: optional dashboard container (builds the Phoenix release)
+  # Use: docker compose --profile full up -d
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fleet-dashboard
+    ports:
+      - "4000:4000"
+    environment:
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - PHX_HOST=0.0.0.0
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-insecure_phase2_demo_only_change_me}
+      - MIX_ENV=prod
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    profiles:
+      - full
+    restart: unless-stopped
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+
+# Future Phase 4: postgres/timescaledb, prometheus, etc. would go here.

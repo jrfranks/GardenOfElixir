@@ -1,0 +1,46 @@
+---
+title: elixir-iot-fleet-monitor — Hybrid IoT Fleet Architecture
+---
+flowchart TB
+    subgraph Console["Fleet Console — Phoenix 1.8 + LiveView"]
+        direction TB
+        LV["LiveView Dashboard<br/>Device Cards • Gauges • Event Log • Cluster Health"]
+        MB["MqttBridge GenServer<br/>(emqtt client)"]
+        FS["FleetState + DeviceRegistry<br/>(ETS + :pg)"]
+        LC["libcluster<br/>(Gossip / EPMD)"]
+        LV <-->|PubSub| FS
+        MB <-->|telemetry/cmd| FS
+        LC -->|Node monitoring| FS
+    end
+
+    subgraph MQTT["Mosquitto MQTT Broker"]
+        TOPICS["v1/dt/fleet/plant/+<br/>v1/cmd/fleet/plant/+<br/>v1/status/fleet/plant/+ (retained LWT)"]
+    end
+
+    subgraph NervesLayer["Nerves / Elixir Fleet (Distributed Erlang)"]
+        direction LR
+        N1["NervesPlantSim-01<br/>(GenServer or separate BEAM node)"]
+        N2["NervesPlantSim-02"]
+        NQ["Real Nerves Node<br/>(QEMU x86_64 + nerves_pack)"]
+        N1 & N2 & NQ <-->|Phoenix.PubSub<br/>+ direct GenServer.call| FS
+        N1 & N2 & NQ <-->|MQTT fallback| MB
+    end
+
+    subgraph ESP32Layer["ESP32 Fleet (C / FreeRTOS)"]
+        direction LR
+        E1["ESP32 Plant Monitor-01<br/>(ESP-IDF + esp-mqtt)"]
+        E2["ESP32 Plant Monitor-02"]
+        EQ["ESP32 in QEMU<br/>(espressif/qemu + WiFi fork)"]
+        E1 & E2 & EQ <-->|MQTT only| MB
+    end
+
+    MB <-->|MQTT 1883 / QoS 1| MQTT
+    N1 & N2 & NQ & E1 & E2 & EQ -->|publish telemetry| MQTT
+    MQTT -->|commands + birth| N1 & N2 & NQ & E1 & E2 & EQ
+
+    style Console fill:#1a365d,color:#fff
+    style MQTT fill:#2d3748,color:#fff
+    style NervesLayer fill:#276749,color:#fff
+    style ESP32Layer fill:#2b6cb0,color:#fff
+    style LV fill:#2c5282
+    style MB fill:#2c5282
