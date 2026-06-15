@@ -17,7 +17,7 @@ services:
       - mosquitto_log:/mosquitto/log
     command: mosquitto -c /mosquitto/config/mosquitto.conf
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-t", "ping", "-C", "1", "-W", "5", "--quiet", "--host", "localhost"]
+      test: ["CMD", "mosquitto_rr", "-t", "healthcheck", "-e", "healthcheck", "-m", "probe", "-W", "3", "--quiet", "--host", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 3
