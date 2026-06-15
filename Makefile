@@ -23,13 +23,8 @@ setup:
 
 docker-up:
 	@echo "==> Starting Mosquitto (MQTT broker)"
-	@if command -v docker-compose >/dev/null 2>&1; then \
-		docker-compose up -d mosquitto; \
-	elif docker compose version >/dev/null 2>&1; then \
-		docker compose up -d mosquitto; \
-	else \
-		echo "ERROR: Neither docker-compose nor 'docker compose' found"; exit 1; \
-	fi || true
+	@chmod +x scripts/ensure-mosquitto.sh
+	@./scripts/ensure-mosquitto.sh
 	@echo "Mosquitto should be on localhost:1883"
 
 docker-up-full:

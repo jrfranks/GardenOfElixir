@@ -97,6 +97,7 @@ defmodule FleetMonitor.Simulators.NervesPlant do
   # All devices get the same simulated dt, making physics behavior
   # predictable and controllable via simulation speed.
   @impl true
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_info({:simulation_tick, dt_seconds, sim_time}, state) do
     # Use the dt provided by the simulation timer (already scaled by speed)
     dt = max(0.01, dt_seconds)

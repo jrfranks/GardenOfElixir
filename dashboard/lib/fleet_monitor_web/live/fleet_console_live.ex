@@ -217,6 +217,31 @@ defmodule FleetMonitorWeb.FleetConsoleLive do
   # --- Event handlers for all Phase 3 controls (optimistic + real path) ---
 
   @impl true
+  def handle_event("water_all", _params, socket) do
+    devices = socket.assigns.devices
+    ids = Map.keys(devices)
+
+    updated_devices =
+      Enum.reduce(ids, devices, fn id, acc ->
+        optimistic_update(acc, id, &put_in(&1, [:status, :valve_open], true))
+      end)
+
+    Enum.each(ids, &Commands.water_now(&1, 0))
+
+    event = %{
+      id: "evt-#{System.unique_integer([:positive])}",
+      ts: System.system_time(:millisecond),
+      kind: :command,
+      device_id: "fleet",
+      msg: "WATER ALL (#{length(ids)} devices)"
+    }
+
+    {:noreply,
+     socket
+     |> assign(:devices, updated_devices)
+     |> stream_insert(:events, event, at: -1)}
+  end
+
   def handle_event("water_now", %{"device_id" => raw_id}, socket) do
     # Phase 3 remediation (review #3): guard + sanitize (demo allow-list + injection prevention)
     id = sanitize_device_id(raw_id)
@@ -527,6 +552,12 @@ defmodule FleetMonitorWeb.FleetConsoleLive do
             >
               + Spawn ESP32 Sim
             </button>
+            <button
+              phx-click="water_all"
+              class="btn btn-sm btn-primary bg-emerald-700 hover:bg-emerald-600"
+            >
+              💧 Water All
+            </button>
             <button phx-click="measure_roundtrip" class="btn btn-sm btn-secondary">
               ⏱ Probe Random
             </button>
@@ -706,6 +737,7 @@ defmodule FleetMonitorWeb.FleetConsoleLive do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp normalize_status(status) when is_map(status) do
     # Mirror the rich fields that the authoritative FleetState keeps.
     # Only include optional config keys when present in the payload so that

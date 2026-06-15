@@ -36,6 +36,8 @@ make demo          # or ./scripts/start-demo.sh
 
 The dashboard will open at http://localhost:4000 with several simulated Nerves and ESP32 devices already streaming realistic plant sensor data.
 
+**Prerequisites:** Docker, Elixir 1.18+, Mix. See [Troubleshooting](#-troubleshooting) if Mosquitto or compose fails.
+
 ---
 
 ## 📁 Repository Layout
@@ -47,7 +49,7 @@ The dashboard will open at http://localhost:4000 with several simulated Nerves a
 ├── esp32/              # Authentic ESP-IDF C code (plant monitor)
 ├── docs/               # Architecture, MQTT topics, getting started, demo script
 ├── diagrams/           # Mermaid architecture diagrams
-├── scripts/            # start-demo.sh, QEMU launchers
+├── scripts/            # start-demo.sh, ensure-mosquitto.sh, QEMU launchers
 ├── docker-compose.yml  # Mosquitto + optional supporting services
 └── Makefile            # The magic entry point
 ```
@@ -65,18 +67,51 @@ These documents (especially `DESIGN.md`) are the primary references for understa
 | 1     | ✅ Complete | Architecture, naming, folder structure, versions, communication model, risks |
 | 2     | ✅ Complete | Core infrastructure (Phoenix + MQTT bridge + simulators + basic LiveView) — foundation only |
 | 3     | ✅ Complete | Full flashy dashboard, controls, dynamic devices, cluster health, event log ([detailed plan](docs/PHASE3_FEATURE_IMPLEMENTATION_PLAN.md)) |
-| 4     | Planned   | One-command demo, video, README polish, Docker Compose, production notes |
+| 4     | 🚧 In progress | One-command demo hardening, CI with Mosquitto, README/docs polish, production notes ([PRODUCTION.md](docs/PRODUCTION.md)) |
 
 ---
 
-## 📸 Screenshots & Demo (Coming Soon)
+## 📸 Screenshots & Demo Video
 
-A 3–5 minute video will be recorded showing:
-- Multiple device cards updating live
-- Sending "Water Now" to both Nerves and ESP32 devices
-- Killing a node and watching it gracefully go offline (LWT)
-- Adding new devices dynamically
-- Cluster health panel reacting to real BEAM nodes joining
+Screenshots and a 3–5 minute demo video are **coming soon**.
+
+- **Screenshots path:** `docs/screenshots/` (add PNGs here when captured manually)
+- **Planned video content:** live device cards, Water Now / Water All, LWT on kill, dynamic spawn, cluster health
+
+---
+
+## 🔧 Troubleshooting
+
+### Mosquitto unhealthy (old healthcheck)
+
+Older compose files used a healthcheck that failed on Mosquitto 2.x. The current `docker-compose.yml` uses `mosquitto_rr` (commit `beecd3f`). If a container is stuck unhealthy:
+
+```bash
+docker rm -f fleet-mosquitto
+make docker-up
+```
+
+### `docker-compose` ContainerConfig / KeyError on recreate
+
+`docker-compose` v1.29.2 can fail when recreating containers. The project falls back automatically:
+
+- `make docker-up` and `make demo` call `scripts/ensure-mosquitto.sh`
+- If compose fails, Mosquitto starts via `docker run` with the same image, volumes, ports, and healthcheck
+
+### `make demo` prerequisites
+
+| Requirement | Check |
+|-------------|--------|
+| Docker running | `docker ps` |
+| Elixir 1.18+ | `elixir -v` |
+| Port 1883 free | `ss -lntp \| grep 1883` |
+| Port 4000 free | `ss -lntp \| grep 4000` |
+
+MQTT env vars (optional): `MQTT_HOST=localhost`, `MQTT_PORT=1883` (defaults in `config/runtime.exs`).
+
+### Tests and MQTT
+
+CI and isolated test runs expect Mosquitto on `localhost:1883`. Start it with `make docker-up` before `cd dashboard && mix test` if the bridge logs `command publish failed`.
 
 ---
 
@@ -100,7 +135,3 @@ MIT — see [LICENSE](LICENSE).
 **Built with ❤️ for the Elixir and embedded communities.**
 
 *If you're a hiring manager or tech lead looking at this repo: this is the level of depth and craftsmanship I bring to distributed real-time systems and edge software.*
-
----
-
-> **Phase 1 complete.** The full architecture plan lives in `docs/PHASE1_ARCHITECTURE_AND_PLAN.md`. Ready to begin Phase 2 upon approval.

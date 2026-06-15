@@ -39,7 +39,12 @@ defmodule FleetMonitor.CommandsLifecycleTest do
 
     already_running? = Process.whereis(FleetMonitor.DeviceSupervisor) != nil
 
-    unless already_running? do
+    if already_running? do
+      # Full suite run — the real app (with its MqttBridge connected to the
+      # docker Mosquitto started by the demo / CI) is already present.
+      # Just give the bridge a tiny moment in case this is a very early test.
+      Process.sleep(30)
+    else
       start_supervised!({Phoenix.PubSub, name: FleetMonitor.PubSub})
 
       start_supervised!(
@@ -56,11 +61,6 @@ defmodule FleetMonitor.CommandsLifecycleTest do
 
       # Give the emqtt connection inside MqttBridge time to come up
       Process.sleep(120)
-    else
-      # Full suite run — the real app (with its MqttBridge connected to the
-      # docker Mosquitto started by the demo / CI) is already present.
-      # Just give the bridge a tiny moment in case this is a very early test.
-      Process.sleep(30)
     end
 
     on_exit(fn ->
@@ -108,6 +108,28 @@ defmodule FleetMonitor.CommandsLifecycleTest do
     PubSub.subscribe(FleetMonitor.PubSub, "fleet:telemetry")
   end
 
+  # Simulators only publish tick telemetry when simulated time advances past the
+  # reporting interval (15s when watering, 60s when valve closed). Tests must use
+  # sim_time values that cross that gate — not wall-clock sleeps.
+  @watering_telemetry_interval_ms 15_000
+  @closed_telemetry_interval_ms 60_000
+
+  defp drain_fleet_telemetry do
+    receive do
+      {:telemetry, _, _, _} -> drain_fleet_telemetry()
+    after
+      0 -> :ok
+    end
+  end
+
+  defp broadcast_tick_await_telemetry(id, dt_seconds, sim_time_ms, timeout_ms \\ 500) do
+    broadcast_simulation_tick(dt_seconds, sim_time_ms)
+
+    # Tick handlers publish telemetry via Task.start; give the bridge a moment.
+    assert_receive {:telemetry, ^id, metrics, _ts}, timeout_ms
+    metrics
+  end
+
   # Best-effort start of Mosquitto (same container the demo uses) so that
   # the real MqttBridge can connect. This makes the full node C&C API test
   # file runnable in complete isolation on a machine with docker, exactly
@@ -123,13 +145,6 @@ defmodule FleetMonitor.CommandsLifecycleTest do
     System.cmd("sh", ["-c", cmd], stderr_to_stdout: true)
     # Give the container a moment to report healthy (healthcheck is in compose)
     Process.sleep(150)
-  end
-
-  # Defensive helper used by the full node API tests so they remain useful
-  # even when DeviceManager dynamic children are not visible in the current
-  # test process (common when running a single test file in isolation).
-  defp maybe_get_sim_state(id) do
-    get_sim_internal_state(id) || %{}
   end
 
   # ------------------------------------------------------------------
@@ -176,11 +191,9 @@ defmodule FleetMonitor.CommandsLifecycleTest do
   # at start time. This completely avoids any Registry lookup races after the
   # initial spawn and makes the "executable spec" tests reliable.
   defp get_sim_state_for_pid(pid) when is_pid(pid) do
-    try do
-      :sys.get_state(pid)
-    catch
-      _, _ -> %{}
-    end
+    :sys.get_state(pid)
+  catch
+    _, _ -> %{}
   end
 
   defp get_sim_state_wait(id, timeout_ms \\ 500) do
@@ -374,11 +387,12 @@ defmodule FleetMonitor.CommandsLifecycleTest do
     post_cmd_valve = get_in(post_cmd_dev, [:status, :valve_open])
     assert is_boolean(post_cmd_valve)
 
-    # Drive one realistic small-dt tick
-    broadcast_simulation_tick(0.15, 1000)
+    # Drive one realistic small-dt tick (closed valve → 60s simulated reporting interval)
+    drain_fleet_telemetry()
 
-    # The receive proves the tick handler (and any valve decision) ran
-    assert_receive {:telemetry, ^id, metrics, _ts}, 300
+    metrics =
+      broadcast_tick_await_telemetry(id, 0.15, @closed_telemetry_interval_ms)
+
     assert is_number(metrics[:soil_moisture])
 
     internal = get_sim_state_for_pid(pid)
@@ -444,10 +458,9 @@ defmodule FleetMonitor.CommandsLifecycleTest do
     pu = internal_after_stop[:water_pulse_until] || 0
     assert pu == 0 or (pu > 0 and pu <= System.monotonic_time(:millisecond))
 
-    # Drive a tick
-    broadcast_simulation_tick(0.15, 2000)
-
-    assert_receive {:telemetry, ^id, _metrics, _ts}, 300
+    # Drive a tick (valve closed after stop → 60s simulated reporting interval)
+    drain_fleet_telemetry()
+    broadcast_tick_await_telemetry(id, 0.15, @closed_telemetry_interval_ms)
 
     internal_after_tick = get_sim_state_for_pid(pid)
     # Valve should be the one decided by auto (or false from stop), not forced true by stale pulse
@@ -469,14 +482,14 @@ defmodule FleetMonitor.CommandsLifecycleTest do
 
     m_start = get_sim_state_for_pid(pid)[:soil_moisture] || 45.0
 
-    # "Slow" dt (like low speed)
-    broadcast_simulation_tick(0.05, 0)
-    assert_receive {:telemetry, ^id, _m2, _t2}, 300
+    # "Slow" dt (like low speed) — valve open → 15s simulated reporting interval
+    drain_fleet_telemetry()
+    broadcast_tick_await_telemetry(id, 0.05, @watering_telemetry_interval_ms)
     m_slow = get_sim_state_for_pid(pid)[:soil_moisture] || m_start
 
-    # "Fast" dt (like high speed)
-    broadcast_simulation_tick(0.5, 0)
-    assert_receive {:telemetry, ^id, _m3, _t3}, 300
+    # "Fast" dt (like high speed) — advance sim time past next watering interval
+    drain_fleet_telemetry()
+    broadcast_tick_await_telemetry(id, 0.5, @watering_telemetry_interval_ms * 2)
     m_fast = get_sim_state_for_pid(pid)[:soil_moisture] || m_slow
 
     # Larger dt should produce visibly larger positive delta when valve open

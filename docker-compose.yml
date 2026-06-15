@@ -10,7 +10,6 @@ services:
     container_name: fleet-mosquitto
     ports:
       - "1883:1883"
-      - "9001:9001" # WebSocket (optional for future tools)
     volumes:
       - ./mosquitto/config:/mosquitto/config:ro
       - mosquitto_data:/mosquitto/data

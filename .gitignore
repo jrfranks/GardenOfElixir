@@ -4,6 +4,8 @@
 /doc
 /.fetch
 erl_crash.dump
+dashboard/erl_crash.dump
+dashboard/priv/plts/
 *.ez
 *.beam
 /config/*.secret.exs

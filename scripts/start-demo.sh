@@ -33,14 +33,9 @@ echo ""
 command -v docker >/dev/null 2>&1 || { echo "${RED}ERROR: docker required${NC}"; exit 1; }
 command -v mix >/dev/null 2>&1 || { echo "${RED}ERROR: mix (Elixir) required${NC}"; exit 1; }
 
-# Docker compose wrapper (v1 or v2)
-DOCKER_COMPOSE="docker-compose"
-if docker compose version >/dev/null 2>&1; then
-  DOCKER_COMPOSE="docker compose"
-fi
-
 echo "${YELLOW}==> Ensuring Mosquitto is running (MQTT broker on :1883)...${NC}"
-$DOCKER_COMPOSE up -d mosquitto || { echo "${RED}Failed to start mosquitto. Check docker.${NC}"; exit 1; }
+chmod +x scripts/ensure-mosquitto.sh
+./scripts/ensure-mosquitto.sh || { echo "${RED}Failed to start mosquitto. Check docker.${NC}"; exit 1; }
 
 # Give broker a moment
 sleep 2

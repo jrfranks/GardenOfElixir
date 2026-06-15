@@ -11,6 +11,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      mosquitto:
+        image: eclipse-mosquitto:2
+        ports:
+          - 1883:1883
+        options: >-
+          --health-cmd "mosquitto_rr -t healthcheck -e healthcheck -m probe -W 3 --quiet --host localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 10s
+    env:
+      MQTT_HOST: localhost
+      MQTT_PORT: 1883
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +52,7 @@ jobs:
       - name: Run tests
         run: cd dashboard && mix test
 
-      - name: Credo (non-strict in CI for Phase 2)
-        run: cd dashboard && mix credo || true
+      - name: Credo (strict)
+        run: cd dashboard && mix credo --strict
 
       # Future: build Nerves firmware, ESP-IDF compile checks, dialyzer

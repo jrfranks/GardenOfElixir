@@ -90,6 +90,7 @@ defmodule FleetMonitor.Simulators.Esp32Plant do
 
   # Receives coordinated ticks from the central SimulationTimer.
   @impl true
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_info({:simulation_tick, dt_seconds, sim_time}, state) do
     dt = max(0.01, dt_seconds)
 
