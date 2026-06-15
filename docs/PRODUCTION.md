@@ -21,10 +21,11 @@ See also `DESIGN.md` §8 (Known Limitations) and `mosquitto/config/mosquitto.con
 
 2. **Per-device credentials** — Each Nerves/ESP32 node gets its own username/password. The Fleet Console bridge uses a dedicated `fleet_console` user with broader (but still scoped) rights.
 
-3. **Topic ACLs** — Enforce read/write separation:
-   - Devices: write-only to `v1/devices/{device_id}/telemetry/#` and `v1/devices/{device_id}/status`
-   - Devices: read-only on `v1/devices/{device_id}/commands/#`
-   - Console: read telemetry/status, write commands (scoped per tenant/fleet)
+3. **Topic ACLs** — Enforce read/write separation (matches `MqttBridge` schema):
+   - Devices: write-only to `v1/dt/fleet/plant/{device_id}/#` (per-metric + aggregate `/sensors`)
+   - Devices: write-only to `v1/status/fleet/plant/{device_id}` (retained status / LWT)
+   - Devices: read-only on `v1/cmd/fleet/plant/{device_id}/#`
+   - Console: read `v1/dt/fleet/plant/#` and `v1/status/fleet/plant/#`; write `v1/cmd/fleet/plant/#`
 
 4. **Rotate credentials** — Treat device passwords like API keys; support revocation without fleet-wide downtime.
 

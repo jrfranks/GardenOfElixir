@@ -11,6 +11,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # CI uses the stock Mosquitto image (anonymous broker default). Local `make docker-up`
+    # mounts mosquitto/config — behavior is equivalent for tests (anonymous MQTT on :1883).
     services:
       mosquitto:
         image: eclipse-mosquitto:2

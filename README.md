@@ -113,6 +113,8 @@ MQTT env vars (optional): `MQTT_HOST=localhost`, `MQTT_PORT=1883` (defaults in `
 
 CI and isolated test runs expect Mosquitto on `localhost:1883`. Start it with `make docker-up` before `cd dashboard && mix test` if the bridge logs `command publish failed`.
 
+**CI note:** GitHub Actions uses the stock `eclipse-mosquitto:2` service image (default anonymous broker). Local `make docker-up` mounts `mosquitto/config/` — both expose `:1883` and work for tests.
+
 ---
 
 ## 🤝 Contributing & Philosophy

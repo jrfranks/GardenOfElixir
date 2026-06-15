@@ -36,10 +36,7 @@ command -v mix >/dev/null 2>&1 || { echo "${RED}ERROR: mix (Elixir) required${NC
 echo "${YELLOW}==> Ensuring Mosquitto is running (MQTT broker on :1883)...${NC}"
 chmod +x scripts/ensure-mosquitto.sh
 ./scripts/ensure-mosquitto.sh || { echo "${RED}Failed to start mosquitto. Check docker.${NC}"; exit 1; }
-
-# Give broker a moment
-sleep 2
-echo "${GREEN}✓ Mosquitto healthy${NC}"
+echo "${GREEN}✓ Mosquitto ready${NC}"
 
 # 2. Dashboard setup (idempotent)
 cd "$(dirname "$0")/.."

@@ -122,29 +122,59 @@ defmodule FleetMonitor.CommandsLifecycleTest do
     end
   end
 
-  defp broadcast_tick_await_telemetry(id, dt_seconds, sim_time_ms, timeout_ms \\ 500) do
-    broadcast_simulation_tick(dt_seconds, sim_time_ms)
+  defp with_paused_simulation_timer(fun) when is_function(fun, 0) do
+    prev_speed = FleetMonitor.SimulationTimer.get_speed()
+    FleetMonitor.SimulationTimer.set_speed(0)
 
-    # Tick handlers publish telemetry via Task.start; give the bridge a moment.
-    assert_receive {:telemetry, ^id, metrics, _ts}, timeout_ms
-    metrics
+    try do
+      fun.()
+    after
+      FleetMonitor.SimulationTimer.set_speed(prev_speed)
+    end
+  end
+
+  defp tick_sim_time_ms(device_id, interval_ms, pid \\ nil) do
+    sim_base = FleetMonitor.SimulationTimer.get_simulated_time()
+
+    last_ms =
+      case pid || get_device_pid(device_id) do
+        dev_pid when is_pid(dev_pid) ->
+          case get_sim_state_for_pid(dev_pid) do
+            %{last_telemetry_ms: last} when is_integer(last) -> last
+            _ -> 0
+          end
+
+        _ ->
+          0
+      end
+
+    max(sim_base + interval_ms + 1, last_ms + interval_ms + 1)
+  end
+
+  defp broadcast_tick_await_telemetry(id, dt_seconds, interval_ms, opts \\ []) do
+    timeout_ms = Keyword.get(opts, :timeout, 1500)
+    pid = Keyword.get(opts, :pid)
+
+    with_paused_simulation_timer(fn ->
+      sim_time_ms = tick_sim_time_ms(id, interval_ms, pid)
+      broadcast_simulation_tick(dt_seconds, sim_time_ms)
+
+      # Tick handlers publish telemetry via Task.start; allow headroom under CI load.
+      assert_receive {:telemetry, ^id, metrics, _ts},
+                     timeout_ms,
+                     "expected tick telemetry for #{id} at sim_time=#{sim_time_ms} (interval=#{interval_ms})"
+
+      metrics
+    end)
   end
 
   # Best-effort start of Mosquitto (same container the demo uses) so that
-  # the real MqttBridge can connect. This makes the full node C&C API test
-  # file runnable in complete isolation on a machine with docker, exactly
-  # like "make demo" does. If docker is not present we still proceed — the
-  # bridge will be in a degraded state but the local PubSub paths (the ones
-  # the LiveView and most assertions actually rely on) remain functional.
+  # the real MqttBridge can connect. Uses scripts/ensure-mosquitto.sh so
+  # test isolation and demo paths share one startup implementation.
   defp ensure_mosquitto_for_tests do
-    # Try the common docker compose v1/v2 spellings used in the Makefile
-    cmd =
-      "docker compose up -d mosquitto 2>/dev/null || " <>
-        "docker-compose up -d mosquitto 2>/dev/null || true"
-
-    System.cmd("sh", ["-c", cmd], stderr_to_stdout: true)
-    # Give the container a moment to report healthy (healthcheck is in compose)
-    Process.sleep(150)
+    root = Path.expand("../../..", __DIR__)
+    script = Path.join(root, "scripts/ensure-mosquitto.sh")
+    System.cmd("sh", [script], cd: root, stderr_to_stdout: true)
   end
 
   # ------------------------------------------------------------------
@@ -247,7 +277,11 @@ defmodule FleetMonitor.CommandsLifecycleTest do
           "test-accumulation-001",
           "test-dt-variation-001",
           "test-stop-during-pulse-001",
-          "test-bad-threshold-nerves"
+          "test-bad-threshold-nerves",
+          "test-water-to-target-nerves",
+          "test-water-to-target-esp32",
+          "test-water-all-001",
+          "test-water-all-002"
         ] do
       if pid = DeviceManager.lookup_pid(id), do: DeviceSupervisor.stop_device(pid)
       FleetState.remove_device(id)
@@ -351,6 +385,46 @@ defmodule FleetMonitor.CommandsLifecycleTest do
     DeviceManager.stop_device("test-ping-001")
   end
 
+  test "water_now with duration 0 activates water_to_target on both node types" do
+    for type <- [:nerves, :esp32] do
+      id = "test-water-to-target-#{type}"
+      pid = start_device_wait(type, id)
+
+      subscribe_fleet_telemetry()
+      FleetMonitor.Commands.water_now(id, 0)
+      assert_receive {:telemetry, ^id, _m, _t}, 400
+
+      internal = get_sim_state_for_pid(pid)
+      assert internal[:water_to_target] == true
+      assert internal[:valve_open] == true
+      assert (internal[:water_pulse_until] || 0) == 0
+
+      DeviceManager.stop_device(id)
+    end
+  end
+
+  test "water_all equivalent dispatches water_to_target to multiple devices" do
+    id1 = "test-water-all-001"
+    id2 = "test-water-all-002"
+    pid1 = start_device_wait(:nerves, id1)
+    pid2 = start_device_wait(:esp32, id2)
+
+    subscribe_fleet_telemetry()
+    Phoenix.PubSub.subscribe(FleetMonitor.PubSub, "fleet:commands")
+
+    for id <- [id1, id2] do
+      FleetMonitor.Commands.water_now(id, 0)
+      assert_receive {:command_sent, ^id, "water_now", %{"duration_ms" => 0}}, 400
+      assert_receive {:telemetry, ^id, _m, _t}, 400
+    end
+
+    assert get_sim_state_for_pid(pid1)[:water_to_target] == true
+    assert get_sim_state_for_pid(pid2)[:water_to_target] == true
+
+    DeviceManager.stop_device(id1)
+    DeviceManager.stop_device(id2)
+  end
+
   test "invalid device id rejected by manager length guard (supports LV allow-list)" do
     # Does not require registry/sup (tests early guard before lookup)
     # too short
@@ -391,7 +465,7 @@ defmodule FleetMonitor.CommandsLifecycleTest do
     drain_fleet_telemetry()
 
     metrics =
-      broadcast_tick_await_telemetry(id, 0.15, @closed_telemetry_interval_ms)
+      broadcast_tick_await_telemetry(id, 0.15, @closed_telemetry_interval_ms, pid: pid)
 
     assert is_number(metrics[:soil_moisture])
 
@@ -460,7 +534,7 @@ defmodule FleetMonitor.CommandsLifecycleTest do
 
     # Drive a tick (valve closed after stop → 60s simulated reporting interval)
     drain_fleet_telemetry()
-    broadcast_tick_await_telemetry(id, 0.15, @closed_telemetry_interval_ms)
+    broadcast_tick_await_telemetry(id, 0.15, @closed_telemetry_interval_ms, pid: pid)
 
     internal_after_tick = get_sim_state_for_pid(pid)
     # Valve should be the one decided by auto (or false from stop), not forced true by stale pulse
@@ -484,12 +558,12 @@ defmodule FleetMonitor.CommandsLifecycleTest do
 
     # "Slow" dt (like low speed) — valve open → 15s simulated reporting interval
     drain_fleet_telemetry()
-    broadcast_tick_await_telemetry(id, 0.05, @watering_telemetry_interval_ms)
+    broadcast_tick_await_telemetry(id, 0.05, @watering_telemetry_interval_ms, pid: pid)
     m_slow = get_sim_state_for_pid(pid)[:soil_moisture] || m_start
 
     # "Fast" dt (like high speed) — advance sim time past next watering interval
     drain_fleet_telemetry()
-    broadcast_tick_await_telemetry(id, 0.5, @watering_telemetry_interval_ms * 2)
+    broadcast_tick_await_telemetry(id, 0.5, @watering_telemetry_interval_ms, pid: pid)
     m_fast = get_sim_state_for_pid(pid)[:soil_moisture] || m_slow
 
     # Larger dt should produce visibly larger positive delta when valve open

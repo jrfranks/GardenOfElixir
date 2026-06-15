@@ -490,11 +490,15 @@ defmodule FleetMonitor.Simulators.NervesPlant do
 
   defp get_duration(payload) do
     case payload do
+      %{"duration_ms" => 0} ->
+        0
+
       %{"duration_ms" => d} when is_integer(d) and d > 0 ->
         min(d, 30_000)
 
       %{"duration_ms" => d} when is_binary(d) ->
         case Integer.parse(d) do
+          {0, _} -> 0
           {i, _} when i > 0 -> min(i, 30_000)
           _ -> 5_000
         end

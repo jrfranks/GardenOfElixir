@@ -217,6 +217,7 @@ elixir-iot-fleet-monitor/
 - No historical data or charts yet.
 - Real hardware/QEMU flows and OTA are documented but not fully exercised in the demo.
 - Some simulator logic is still duplicated between the two flavors (can be centralized later).
+- `normalize_status/1` and simulator tick handlers carry Credo complexity disables; follow-up: extract threshold/interval field helpers and remove disables.
 
 ---
 

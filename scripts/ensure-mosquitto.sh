@@ -9,8 +9,34 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+wait_for_mosquitto_healthy() {
+  timeout=60
+  elapsed=0
+
+  while [ "$elapsed" -lt "$timeout" ]; do
+    status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' fleet-mosquitto 2>/dev/null || echo "missing")
+
+    if [ "$status" = "healthy" ]; then
+      echo "==> Mosquitto healthy"
+      return 0
+    fi
+
+    if [ "$status" = "unhealthy" ]; then
+      echo "ERROR: fleet-mosquitto is unhealthy — try: docker rm -f fleet-mosquitto && make docker-up" >&2
+      return 1
+    fi
+
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+
+  echo "ERROR: fleet-mosquitto did not become healthy within ${timeout}s (last: ${status})" >&2
+  return 1
+}
+
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'fleet-mosquitto'; then
-  echo "==> fleet-mosquitto already running — skipping start"
+  echo "==> fleet-mosquitto already running — checking health"
+  wait_for_mosquitto_healthy
   exit 0
 fi
 
@@ -33,6 +59,7 @@ compose_up() {
 echo "==> Starting Mosquitto via docker compose..."
 if compose_up 2>/dev/null; then
   echo "==> Mosquitto started via compose"
+  wait_for_mosquitto_healthy
   exit 0
 fi
 
@@ -53,3 +80,4 @@ docker run -d \
   mosquitto -c /mosquitto/config/mosquitto.conf
 
 echo "==> Mosquitto started via docker run on localhost:1883"
+wait_for_mosquitto_healthy

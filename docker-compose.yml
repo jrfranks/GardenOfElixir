@@ -47,6 +47,8 @@ services:
 
 volumes:
   mosquitto_data:
+    name: fleet-mosquitto_data
   mosquitto_log:
+    name: fleet-mosquitto_log
 
 # Future Phase 4: postgres/timescaledb, prometheus, etc. would go here.

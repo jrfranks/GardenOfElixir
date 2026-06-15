@@ -221,25 +221,29 @@ defmodule FleetMonitorWeb.FleetConsoleLive do
     devices = socket.assigns.devices
     ids = Map.keys(devices)
 
-    updated_devices =
-      Enum.reduce(ids, devices, fn id, acc ->
-        optimistic_update(acc, id, &put_in(&1, [:status, :valve_open], true))
-      end)
+    if ids == [] do
+      {:noreply, put_flash(socket, :info, "No devices yet")}
+    else
+      updated_devices =
+        Enum.reduce(ids, devices, fn id, acc ->
+          optimistic_update(acc, id, &put_in(&1, [:status, :valve_open], true))
+        end)
 
-    Enum.each(ids, &Commands.water_now(&1, 0))
+      Enum.each(ids, &Commands.water_now(&1, 0))
 
-    event = %{
-      id: "evt-#{System.unique_integer([:positive])}",
-      ts: System.system_time(:millisecond),
-      kind: :command,
-      device_id: "fleet",
-      msg: "WATER ALL (#{length(ids)} devices)"
-    }
+      event = %{
+        id: "evt-#{System.unique_integer([:positive])}",
+        ts: System.system_time(:millisecond),
+        kind: :command,
+        device_id: "fleet",
+        msg: "WATER ALL (#{length(ids)} devices)"
+      }
 
-    {:noreply,
-     socket
-     |> assign(:devices, updated_devices)
-     |> stream_insert(:events, event, at: -1)}
+      {:noreply,
+       socket
+       |> assign(:devices, updated_devices)
+       |> stream_insert(:events, event, at: -1)}
+    end
   end
 
   def handle_event("water_now", %{"device_id" => raw_id}, socket) do
@@ -645,7 +649,7 @@ defmodule FleetMonitorWeb.FleetConsoleLive do
             <span class="text-emerald-300 flex-shrink-0">{evt.device_id}</span>
             <span class="text-zinc-300 flex-1 truncate">{evt.msg}</span>
           </div>
-          <div :if={@event_count == 0} class="text-zinc-500 p-2">
+          <div :if={@event_count == 0} id="events-empty" class="text-zinc-500 p-2">
             Waiting for events (telemetry, commands, births, LWTs)...
           </div>
         </div>

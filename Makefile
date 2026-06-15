@@ -64,7 +64,7 @@ test:
 	cd dashboard && mix test
 
 lint:
-	cd dashboard && mix format --check-formatted && mix credo --strict || true
+	cd dashboard && mix format --check-formatted && mix credo --strict
 
 format:
 	cd dashboard && mix format
