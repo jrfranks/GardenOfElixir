@@ -1,4 +1,4 @@
-# elixir-iot-fleet-monitor
+# GardenOfElixir
 
 > A visually impressive, production-grade, hybrid IoT fleet monitoring system showcasing advanced Elixir + embedded C skills.
 
@@ -30,8 +30,8 @@ This is a **clean-slate, open-source portfolio project** designed to demonstrate
 Once the core is built:
 
 ```bash
-git clone https://github.com/<you>/elixir-iot-fleet-monitor
-cd elixir-iot-fleet-monitor
+git clone https://github.com/jrfranks/GardenOfElixir
+cd GardenOfElixir
 make demo          # or ./scripts/start-demo.sh
 ```
 
@@ -80,7 +80,7 @@ These documents (especially `DESIGN.md`) are the primary references for understa
 
 ## 📸 Screenshots & Demo Video
 
-Screenshots and a 3–5 minute demo video are **coming soon**.
+Screenshots and a short demo video are not in the repo yet. Add PNGs under `docs/screenshots/` when you capture them.
 
 - **Screenshots path:** `docs/screenshots/` (add PNGs here when captured manually)
 - **Planned video content:** live device cards, Water Now / Water All, LWT on kill, dynamic spawn, cluster health
