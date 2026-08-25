@@ -1,0 +1,4 @@
+-setcookie <%= @release.options[:cookie] %>
++swt none
++sbwt none
++sssdio 128

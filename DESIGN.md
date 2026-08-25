@@ -2,7 +2,7 @@
 
 **Project:** A high-quality, visually impressive, hybrid IoT fleet monitoring system showcasing advanced Elixir + embedded systems skills.
 
-**Status:** Phase 3 ("The Wow") complete. Phase 4 (polish, video, production notes) planned.
+**Status:** Phase 3 ("The Wow") complete. ESP-IDF and Nerves firmware trees are real projects (host builds in CI). Phase 4 (polish, video, production notes) planned.
 
 **Audience:** Engineers and maintainers new to the project, contributors, and anyone evaluating the codebase for portfolio or hiring purposes.
 
@@ -175,8 +175,8 @@ elixir-iot-fleet-monitor/
 │   │   ├── live/fleet_console_live.ex # The main UI orchestrator
 │   │   └── components/device_card.ex  # Reusable card (gauges + controls)
 │   └── ...
-├── nerves/plant_monitor/       # Stub for real Nerves firmware (future)
-├── esp32/plant_monitor/        # Stub for real ESP-IDF firmware (future)
+├── nerves/plant_monitor/       # Nerves firmware (host Mix target + x86_64)
+├── esp32/plant_monitor/        # ESP-IDF C (portable core + idf.py app + host MQTT)
 ├── shared/                     # Future extraction point for common logic
 ├── scripts/start-demo.sh
 ├── docker-compose.yml + Dockerfile
@@ -204,8 +204,8 @@ elixir-iot-fleet-monitor/
 
 - **New sensor type**: Add to `plant_physics.sample_sensors/1` and the per-metric publishing logic in the bridge. Update the DeviceCard gauges.
 - **New command**: Add a handler in `Commands`, wire a button in the LiveView + DeviceCard, implement reaction in the simulators, and publish a status/feedback telemetry.
-- **Real Nerves device**: Build the firmware using the same topic schema and `emqtt` (or `tortoise`). It can optionally join the BEAM cluster for direct calls.
-- **Real ESP32**: Implement the same MQTT topics + JSON payloads in ESP-IDF. The console will work without changes.
+- **Real Nerves device**: `nerves/plant_monitor` (tortoise311, same topic schema). Host: `mix run --no-halt`. Image: `MIX_TARGET=x86_64 mix firmware`. Optional `CLUSTER_ENABLED=1` for libcluster gossip.
+- **Real ESP32**: `esp32/plant_monitor` (ESP-IDF + portable `core/`). Host C node: `make -C esp32/plant_monitor/host`. Hardware: `idf.py build flash monitor`. The console works without changes.
 - **Persistence / historical charts**: Add Ecto + a time-series store in Phase 4. `FleetState` can remain the hot cache.
 
 ---
@@ -215,7 +215,7 @@ elixir-iot-fleet-monitor/
 - No authentication or multi-user support (demo-only surface is intentionally open with warnings).
 - Event log is bounded but in-memory only.
 - No historical data or charts yet.
-- Real hardware/QEMU flows and OTA are documented but not fully exercised in the demo.
+- Real hardware/QEMU flows and OTA are documented; default demo uses Elixir sims plus optional host firmware nodes (`make demo-firmware`).
 - Some simulator logic is still duplicated between the two flavors (can be centralized later).
 - `normalize_status/1` and simulator tick handlers carry Credo complexity disables; follow-up: extract threshold/interval field helpers and remove disables.
 

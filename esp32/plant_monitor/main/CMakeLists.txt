@@ -1,0 +1,22 @@
+idf_component_register(
+    SRCS
+        "app_main.c"
+        "wifi.c"
+        "mqtt_app.c"
+        "plant_task.c"
+        "../core/plant_physics.c"
+        "../core/json_util.c"
+        "../core/protocol.c"
+        "../core/plant_runtime.c"
+    INCLUDE_DIRS
+        "."
+        "../core"
+    REQUIRES
+        mqtt
+        nvs_flash
+        esp_wifi
+        esp_event
+        esp_netif
+        esp_driver_gpio
+        esp_timer
+)

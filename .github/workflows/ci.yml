@@ -1,5 +1,4 @@
 # .github/workflows/ci.yml
-# Minimal CI for Phase 2 foundation. Expands in Phase 4.
 name: CI
 
 on:
@@ -57,4 +56,33 @@ jobs:
       - name: Credo (strict)
         run: cd dashboard && mix credo --strict
 
-      # Future: build Nerves firmware, ESP-IDF compile checks, dialyzer
+  esp32-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Physics + protocol tests (no ESP-IDF)
+        run: make -C esp32/plant_monitor/host test
+      - name: Build host C firmware
+        run: make -C esp32/plant_monitor/host
+
+  nerves-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            nerves/plant_monitor/deps
+            nerves/plant_monitor/_build
+          key: ${{ runner.os }}-nerves-mix-${{ hashFiles('nerves/plant_monitor/mix.lock') }}
+      - name: Install deps
+        run: cd nerves/plant_monitor && mix deps.get
+      - name: Format
+        run: cd nerves/plant_monitor && mix format --check-formatted
+      - name: Test host firmware
+        run: cd nerves/plant_monitor && mix test

@@ -1,0 +1,35 @@
+menu "Plant Monitor"
+
+    config PLANT_DEVICE_ID
+        string "Device ID (MQTT client id + topic segment)"
+        default "esp32-fw-001"
+        help
+            Must be unique on the broker. Fleet Console infers type from "esp32".
+
+    config PLANT_MQTT_URI
+        string "MQTT broker URI"
+        default "mqtt://192.168.1.10:1883"
+        help
+            Use mqtts://host:8883 once the broker has TLS (see docs/PRODUCTION.md).
+
+    config PLANT_WIFI_SSID
+        string "WiFi SSID"
+        default "garden"
+
+    config PLANT_WIFI_PASSWORD
+        string "WiFi password"
+        default "elixir"
+
+    config PLANT_VALVE_GPIO
+        int "GPIO for valve/LED indicator"
+        default 2
+        help
+            Driven high while the simulated irrigation valve is open.
+            GPIO2 is the onboard LED on many ESP32 DevKit boards.
+
+    config PLANT_TICK_MS
+        int "Physics tick period (ms)"
+        default 200
+        range 50 2000
+
+endmenu

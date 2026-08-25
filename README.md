@@ -5,8 +5,9 @@
 **Live simulated fleet of plant monitors** (soil moisture, temperature, humidity, valve control) powered by:
 
 - **Phoenix 1.8 + LiveView** — The "Fleet Console" dashboard
-- **Nerves Simulator nodes** (Elixir) — using distributed Erlang + libcluster
-- **ESP32 nodes** (real C / ESP-IDF) — communicating over MQTT
+- **Elixir simulators** inside the dashboard BEAM — the one-command demo (`make demo`)
+- **Nerves firmware** (`nerves/plant_monitor`) — Mix project; host MQTT node or `MIX_TARGET=x86_64` image
+- **ESP32 firmware** (`esp32/plant_monitor`) — ESP-IDF C (Wi-Fi, esp-mqtt, FreeRTOS) plus a POSIX host build
 - **Mosquitto** as the universal communication bus
 
 This is a **clean-slate, open-source portfolio project** designed to demonstrate senior-level capabilities across the full stack: real-time web systems, distributed BEAM architecture, realistic embedded simulation, and excellent developer experience.
@@ -16,8 +17,8 @@ This is a **clean-slate, open-source portfolio project** designed to demonstrate
 ## ✨ Why This Project Stands Out
 
 - **True hybrid architecture** — MQTT for cross-language devices + native Distributed Erlang for Elixir/Nerves nodes (the right tool for each job)
-- **One-command impressive demo** (`make demo`)
-- **Real, not toy, C code** — complete ESP-IDF project that runs on actual hardware or QEMU
+- **One-command impressive demo** (`make demo`) — Elixir simulators; `make demo-firmware` also starts the C and Nerves MQTT nodes
+- **Real, not toy, C code** — portable plant core + complete ESP-IDF app; CI compiles the host firmware (`make -C esp32/plant_monitor/host test`)
 - **Production patterns** — robust reconnection, supervision, structured logging, dynamic device lifecycle, realistic physics simulation
 - **Stunning LiveView UI** — gauges, live streams, optimistic controls, cluster health, event log
 - **Excellent documentation** — architecture diagrams, setup for mortals, demo video, "how this maps to real production" notes
@@ -36,7 +37,12 @@ make demo          # or ./scripts/start-demo.sh
 
 The dashboard will open at http://localhost:4000 with several simulated Nerves and ESP32 devices already streaming realistic plant sensor data.
 
-**Prerequisites:** Docker, Elixir 1.18+, Mix. See [Troubleshooting](#-troubleshooting) if Mosquitto or compose fails.
+Firmware nodes (optional, same MQTT schema): `make demo-firmware` or
+`scripts/start-esp32-host.sh` / `scripts/start-nerves-host.sh` after Mosquitto
+is up. Hardware/QEMU steps live in `esp32/plant_monitor/README.md` and
+`nerves/plant_monitor/README.md`. Topic contract: [docs/MQTT_TOPICS.md](docs/MQTT_TOPICS.md).
+
+**Prerequisites:** Docker, Elixir 1.18+, Mix, a C compiler (`gcc`/`clang`) for the ESP32 host tests. See [Troubleshooting](#-troubleshooting) if Mosquitto or compose fails.
 
 ---
 
@@ -45,8 +51,8 @@ The dashboard will open at http://localhost:4000 with several simulated Nerves a
 ```
 .
 ├── dashboard/          # Phoenix 1.8 LiveView Fleet Console
-├── nerves/             # Real Nerves firmware (x86_64 QEMU + real targets)
-├── esp32/              # Authentic ESP-IDF C code (plant monitor)
+├── nerves/             # Nerves firmware (host MQTT node + x86_64 image)
+├── esp32/              # ESP-IDF C firmware (host POSIX node + idf.py)
 ├── docs/               # Architecture, MQTT topics, getting started, demo script
 ├── diagrams/           # Mermaid architecture diagrams
 ├── scripts/            # start-demo.sh, ensure-mosquitto.sh, QEMU launchers
@@ -68,6 +74,7 @@ These documents (especially `DESIGN.md`) are the primary references for understa
 | 2     | ✅ Complete | Core infrastructure (Phoenix + MQTT bridge + simulators + basic LiveView) — foundation only |
 | 3     | ✅ Complete | Full flashy dashboard, controls, dynamic devices, cluster health, event log ([detailed plan](docs/PHASE3_FEATURE_IMPLEMENTATION_PLAN.md)) |
 | 4     | 🚧 In progress | One-command demo hardening, CI with Mosquitto, README/docs polish, production notes ([PRODUCTION.md](docs/PRODUCTION.md)) |
+| Firmware | ✅ Complete | ESP-IDF C (`esp32/plant_monitor`) and Nerves (`nerves/plant_monitor`) — host builds in CI; hardware/QEMU optional |
 
 ---
 

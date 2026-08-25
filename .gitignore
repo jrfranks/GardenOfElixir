@@ -10,3 +10,22 @@ dashboard/priv/plts/
 *.beam
 /config/*.secret.exs
 .elixir_ls/
+
+# ESP-IDF + host C
+esp32/plant_monitor/build/
+esp32/plant_monitor/sdkconfig
+esp32/plant_monitor/sdkconfig.old
+esp32/plant_monitor/managed_components/
+esp32/plant_monitor/dependencies.lock
+esp32/plant_monitor/host/plant_monitor_host
+esp32/plant_monitor/host/test_physics
+esp32/plant_monitor/host/test_runtime
+esp32/plant_monitor/host/*.o
+
+# Nerves
+nerves/plant_monitor/_build
+nerves/plant_monitor/deps
+nerves/plant_monitor/.nerves
+nerves/plant_monitor/*.fw
+nerves/plant_monitor/upload.sh
+nerves/plant_monitor/.elixir_ls/
