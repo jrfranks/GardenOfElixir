@@ -45,7 +45,7 @@ jobs:
       - name: Install deps
         run: |
           cd dashboard
-          mix deps.get --only test
+          mix deps.get
 
       - name: Check formatting
         run: cd dashboard && mix format --check-formatted
